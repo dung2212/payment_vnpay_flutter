@@ -60,10 +60,13 @@ Add scheme call back to Info.Plist
 ```
 
 ## Android
-Add scheme call back
+Add scheme call back in file AndroidManifest.xml
+```xml
 <data
 android:scheme="<scheme_name>"
 android:host="" />
+```
+
 
 ## Usage
 ```dart
