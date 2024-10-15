@@ -7,6 +7,7 @@ Package support Open Scheme app to app Bank
 ## Getting started
 ## iOS
 Add white list to Info.Plist
+```xml
 <array>
 <string>momo</string>
 <string>ncbsmartbanking</string>
@@ -40,8 +41,9 @@ Add white list to Info.Plist
 <string>vivietvnpay</string>
 <string>com.mobile.vtcpay</string>
 </array>
-
+```
 Add scheme call back to Info.Plist
+```xml
 <key>CFBundleURLTypes</key>
 <array>
 <dict>
@@ -55,7 +57,7 @@ Add scheme call back to Info.Plist
 </array>
 </dict>
 </array>
-
+```
 
 ## Android
 Add scheme call back
@@ -64,7 +66,7 @@ android:scheme="<scheme_name>"
 android:host="" />
 
 ## Usage
-
+```dart
 VNPayWebViewView(
 redirectUrl: widget.redirectUrl,
 schemeReturn: '<scheme_name>://',
@@ -106,10 +108,8 @@ arguments: PaymentFailPage.arguments(note: message ??""),
 );
 },
 )
-
-```dart
-const like = 'sample';
 ```
+
 
 ## Additional information
 
