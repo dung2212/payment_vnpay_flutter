@@ -68,45 +68,18 @@ android:host="" />
 ## Usage
 ```dart
 VNPayWebViewView(
-redirectUrl: widget.redirectUrl,
-schemeReturn: '<scheme_name>://',
-listCheckReturn: ["don-hang/chi-tiet"],
-onPaymentSuccess: () async {
-Get.offNamedUntil(
-PaymentResultPage.routeName,
-(route) {
-if (route.settings.name == WebViewPaymentPage.routeName) {
-return false;
-}
-if (route.settings.name == PaymentPage.routeName) {
-return false;
-}
-return true;
-},
-arguments: PaymentResultPage.arguments(
-transactionCode: widget.transactionCode,
-orderCode: widget.orderCode,
-),
-);
-},
-onShowDialogError: (message){
-DialogUtil.showDialogMessage(message);
-},
-onPaymentError: (code, message) {
-Get.offNamedUntil(
-PaymentFailPage.routeName,
-(route) {
-if (route.settings.name == WebViewPaymentPage.routeName) {
-return false;
-}
-if (route.settings.name == PaymentPage.routeName) {
-return false;
-}
-return true;
-},
-arguments: PaymentFailPage.arguments(note: message ??""),
-);
-},
+    redirectUrl: widget.redirectUrl,//url vnpay
+    schemeReturn: '<scheme_name>://',
+    listCheckReturn: ["don-hang/chi-tiet"],//url return
+    onPaymentSuccess: () async {
+        //Payment success
+    },
+    onShowDialogError: (message){
+        //Show message error
+    },
+    onPaymentError: (code, message) {
+        //Payment error
+    },
 )
 ```
 
