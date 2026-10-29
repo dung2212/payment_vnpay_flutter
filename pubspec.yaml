@@ -1,25 +1,20 @@
 name: payment_vnpay_flutter
-description: A new Flutter project.
-version: 0.0.1
+description: Hiển thị cổng thanh toán VNPay trong WebView, mở app ngân hàng và nhận kết quả trả về.
+version: 2.0.0
+publish_to: 'none'
 homepage:
 
 environment:
-  sdk: '>=2.19.2 <3.0.0'
-  flutter: ">=1.17.0"
+  sdk: ^3.6.0
+  flutter: ">=3.27.0"
 dependencies:
   flutter:
     sdk: flutter
-  url_launcher: 6.1.7
-  app_links: 3.4.5
-  flutter_inappwebview:
-    git:
-      url: https://github.com/dung2212/flutter_inappwebview.git
-  flutter_intent_scheme_android:
-    git:
-      url: https://github.com/dung2212/flutter_intent_scheme_android.git
-      ref: master
+  url_launcher: ^6.3.1
+  app_links: ^6.4.0
+  flutter_inappwebview: ^6.1.5
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^5.0.0
 flutter:

@@ -2,22 +2,29 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:app_links/app_links.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter_intent_scheme_android/flutter_intent_scheme_android.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
+
+import '../intent_url.dart';
+import '../vnpay_response_code.dart';
 
 class VNPayWebViewController {
+  /// Scheme app nhận kết quả, vd `abin://`.
   final String schemeReturn;
+
+  /// Chuỗi nhận diện trang web trả về của server (vnp_ReturnUrl), vd `"vnpay/return"`.
   final List<String> listCheckReturn;
+
+  /// Gọi khi `vnp_ResponseCode == "00"`. App nên kiểm lại trạng thái đơn trên server,
+  /// vì tham số trên URL có thể bị sửa.
   final Future Function()? onPaymentSuccess;
-  final Function(String? code, String? messsage)? onPaymentError;
+  final Function(String? code, String? message)? onPaymentError;
   final Function(String? message)? onShowDialogError;
 
   VNPayWebViewController({
     required this.schemeReturn,
-    required this.listCheckReturn,
+    this.listCheckReturn = const [],
     this.onPaymentSuccess,
     this.onPaymentError,
     this.onShowDialogError,
@@ -25,103 +32,87 @@ class VNPayWebViewController {
     _initAppLink();
   }
 
-  ValueNotifier<bool> isLoading = ValueNotifier(false);
+  static const _webSchemes = ["http", "https", "file", "chrome", "data", "javascript", "about"];
+  static const _errorOpenApp = "Không thể thanh toán bằng phương thức này";
 
-  Future<NavigationActionPolicy?> shouldOverrideUrlLoading(InAppWebViewController controller, NavigationAction navigationAction) async {
-    var uri = navigationAction.request.url;
-    String url = uri.toString();
-    debugPrint(uri.toString());
-    if (uri != null && !["http", "https", "file", "chrome", "data", "javascript", "about"].contains(uri.scheme)) {
-      if (url.startsWith('intent://') && Platform.isAndroid) {
-        final result = await FlutterIntentSchemeAndroid.openApp(url);
-        if (!result) {
-          onShowDialogError?.call("Không thể thanh toán bằng phương thức này");
-        }
-        return NavigationActionPolicy.CANCEL;
-      } else if (url.startsWith(schemeReturn)) {
-        _onCheckErrorCode(uri);
-        return NavigationActionPolicy.CANCEL;
-      } else if (Platform.isIOS) {
-        try {
-          UrlLauncherPlatform.instance.launchUrl(
-            navigationAction.request.originalUrl!,
-            const LaunchOptions(
-              mode: PreferredLaunchMode.platformDefault,
-              webViewConfiguration: InAppWebViewConfiguration(),
-              webOnlyWindowName: null,
-            ),
-          );
-        } catch (ex) {
-          onShowDialogError?.call("Không thể thanh toán bằng phương thức này");
-        }
-        return NavigationActionPolicy.CANCEL;
-      } else if (url.contains("viettelmoney://")) {
-        try {
-          await launchURL(url);
-        } catch (ex) {
-          onShowDialogError?.call("Không thể thanh toán bằng phương thức này");
-        }
-        return NavigationActionPolicy.CANCEL;
-      }
-    } else if (_checkReturnUrl(uri.toString()) || url.startsWith(schemeReturn)) {
-      _onCheckErrorCode(uri!);
-      return NavigationActionPolicy.ALLOW;
+  final _appLinks = AppLinks();
+  StreamSubscription<Uri>? _sub;
+
+  /// Kết quả chỉ báo một lần: app link và WebView có thể cùng nhận URL trả về.
+  bool _isHandled = false;
+
+  Future<NavigationActionPolicy?> shouldOverrideUrlLoading(
+      InAppWebViewController controller, NavigationAction navigationAction) async {
+    final uri = navigationAction.request.url;
+    if (uri == null) return NavigationActionPolicy.ALLOW;
+    final url = uri.toString();
+    debugPrint("VNPay: $url");
+
+    if (isSchemeReturn(url)) {
+      _onCheckErrorCode(uri);
+      return NavigationActionPolicy.CANCEL;
+    }
+    if (!_webSchemes.contains(uri.scheme)) {
+      await _openExternalApp(url);
+      return NavigationActionPolicy.CANCEL;
+    }
+    if (isReturnUrl(url)) {
+      _onCheckErrorCode(uri);
     }
     return NavigationActionPolicy.ALLOW;
   }
 
-  static launchURL(String url, {bool isEncodeUri = true}) async {
-    debugPrint("launchURL: $url");
-    var _url = Uri.tryParse(isEncodeUri ? Uri.encodeFull(url) : url);
-    if (_url != null) {
-      if (!await launchUrl(_url, mode: LaunchMode.externalApplication)) throw 'Could not openURL $_url';
-    } else {
-      throw 'Could not openURL $url';
+  /// Bắt URL trả về khi server redirect (Android không phải lúc nào cũng gọi shouldOverrideUrlLoading).
+  void onLoadStart(InAppWebViewController controller, WebUri? uri) {
+    if (uri != null && isReturnUrl(uri.toString())) {
+      _onCheckErrorCode(uri);
     }
   }
 
-  bool _checkReturnUrl(String url) {
-    for (var item in listCheckReturn) {
-      if (url.contains(item)) {
-        return true;
-      }
+  bool isSchemeReturn(String url) => url.startsWith(schemeReturn);
+
+  bool isReturnUrl(String url) => listCheckReturn.any(url.contains);
+
+  Future<void> _openExternalApp(String url) async {
+    final candidates = Platform.isAndroid && url.startsWith("intent://")
+        ? (IntentUrl.tryParse(url)?.candidates ?? const <String>[])
+        : [url];
+    for (final item in candidates) {
+      if (await _launchExternal(item)) return;
     }
-    return false;
+    onShowDialogError?.call(_errorOpenApp);
   }
 
-  _onCheckErrorCode(Uri uri) {
-    var responseCode = uri.queryParameters["vnp_ResponseCode"];
-    var error = {
-      "07": "Trừ tiền thành công. Giao dịch bị nghi ngờ (liên quan tới lừa đảo, giao dịch bất thường).",
-      "09": "Thẻ/Tài khoản của khách hàng chưa đăng ký dịch vụ InternetBanking tại ngân hàng.",
-      "10": "Khách hàng xác thực thông tin thẻ/tài khoản không đúng quá 3 lần",
-      "11": "Đã hết hạn chờ thanh toán. Xin quý khách vui lòng thực hiện lại giao dịch.",
-      "12": "Thẻ/Tài khoản của khách hàng bị khóa.",
-      "13": "Quý khách nhập sai mật khẩu xác thực giao dịch (OTP). Xin quý khách vui lòng thực hiện lại giao dịch.",
-      "24": "Khách hàng hủy giao dịch.",
-      "51": "Tài khoản của quý khách không đủ số dư để thực hiện giao dịch.",
-      "65": "Tài khoản của Quý khách đã vượt quá hạn mức giao dịch trong ngày.",
-      "75": "Ngân hàng thanh toán đang bảo trì.",
-      "79": "KH nhập sai mật khẩu thanh toán quá số lần quy định. Xin quý khách vui lòng thực hiện lại giao dịch",
-      "99": "Lỗi không xác định.",
-    };
-    if (responseCode == "00") {
+  static Future<bool> _launchExternal(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint("VNPay launch $url: $e");
+      return false;
+    }
+  }
+
+  void _onCheckErrorCode(Uri uri) {
+    final responseCode = uri.queryParameters["vnp_ResponseCode"];
+    // URL chưa có mã (trang trung gian) thì chờ URL tiếp theo.
+    if (responseCode == null || _isHandled) return;
+    _isHandled = true;
+    if (responseCode == VNPayResponseCode.success) {
       onPaymentSuccess?.call();
     } else {
-      onPaymentError?.call(responseCode, error[responseCode] ?? "Lỗi không xác định");
+      onPaymentError?.call(responseCode, VNPayResponseCode.messageOf(responseCode));
     }
   }
 
-  final _appLinks = AppLinks(); // AppLinks i
-  StreamSubscription? _sub;
-
-  _initAppLink() async {
+  void _initAppLink() {
     _sub = _appLinks.uriLinkStream.listen((uri) {
-      _onCheckErrorCode(uri);
+      if (isSchemeReturn(uri.toString())) _onCheckErrorCode(uri);
     });
   }
 
-  dispose() {
+  void dispose() {
     _sub?.cancel();
   }
 }

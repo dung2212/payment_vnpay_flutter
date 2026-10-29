@@ -61,35 +61,36 @@ Add scheme call back to Info.Plist
 ```
 
 ## Android
-Add scheme call back in file AndroidManifest.xml
+Add scheme call back in `<activity android:name=".MainActivity">` of AndroidManifest.xml
 ```xml
-<data
-android:scheme="<scheme_name>"
-android:host="" />
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="<scheme_name>" />
+</intent-filter>
 ```
-
+Link `intent://` của ngân hàng được tách thành `scheme://…` → `browser_fallback_url` → Play Store
+(không cần package `flutter_intent_scheme_android` nữa).
 
 ## Usage
 ```dart
 VNPayWebViewView(
-    redirectUrl: widget.redirectUrl,//url vnpay
+    redirectUrl: paymentUrl, // link VNPay server trả về
     schemeReturn: '<scheme_name>://',
-    listCheckReturn: ["don-hang/chi-tiet"],//url return
+    listCheckReturn: ["vnpay/return"], // chuỗi nhận diện trang vnp_ReturnUrl
     onPaymentSuccess: () async {
-        //Payment success
-    },
-    onShowDialogError: (message){
-        //Show message error
+        // vnp_ResponseCode == 00 — vẫn phải kiểm lại trạng thái đơn trên server
     },
     onPaymentError: (code, message) {
-        //Payment error
+        // code: vnp_ResponseCode, message: VNPayResponseCode.messageOf(code)
+    },
+    onShowDialogError: (message) {
+        // không mở được app ngân hàng
     },
 )
 ```
 
-
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+## Version
+- `2.x` (nhánh `v2`): Dart 3, flutter_inappwebview 6, app_links 6.
+- `0.0.1` (nhánh `main`): Dart 2.
